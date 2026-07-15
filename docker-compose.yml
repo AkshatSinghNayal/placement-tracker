@@ -1,0 +1,90 @@
+# OfferForge — local dev / integration compose (MERN stack).
+#
+# Usage:
+#   cp backend/.env.example .env   # then fill in JWT_SECRET + optionals
+#   docker compose up --build
+#
+# Services:
+#   mongodb  → mongodb://localhost:27017  (data persisted in mongo_data volume)
+#   backend  → http://localhost:8000     (Express / Node 20)
+#   frontend → http://localhost:5173     (React / nginx)
+#
+# The backend container runs the company seeder automatically on first boot
+# (idempotent — safe to restart without duplicate data).
+
+services:
+  # --------------------------------------------------------------------------
+  # MongoDB 7
+  # --------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7-jammy
+    container_name: offerforge-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # --------------------------------------------------------------------------
+  # Express backend (Node 20)
+  # --------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: offerforge-backend
+    restart: unless-stopped
+    env_file:
+      # Copy backend/.env.example → .env (in the root, next to this file) and
+      # fill in your secrets before running `docker compose up`.
+      - .env
+    environment:
+      # These always override whatever is in .env so in-container networking works.
+      MONGODB_URI: "mongodb://mongodb:27017/placement_tracker"
+      FRONTEND_URL: "http://localhost:5173"
+      BACKEND_URL: "http://localhost:8000"
+      APP_ENV: "dev"
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      # Mount source for faster local iteration without rebuilding the image.
+      # Comment this out for a pure production-like build.
+      - ./backend/src:/app/src:ro
+
+  # --------------------------------------------------------------------------
+  # React frontend (Vite → nginx)
+  # --------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Empty → nginx proxies /api/* to the backend at runtime.
+        # For a cross-origin Render backend override with the real URL:
+        #   VITE_API_URL: "https://your-app.onrender.com"
+        VITE_API_URL: ""
+    container_name: offerforge-frontend
+    restart: unless-stopped
+    environment:
+      # nginx substitutes this at container start to proxy API calls.
+      BACKEND_URL: "http://backend:8000"
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+# ----------------------------------------------------------------------------
+# Named volumes
+# ----------------------------------------------------------------------------
+volumes:
+  mongo_data:
+    driver: local
