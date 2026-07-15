@@ -1,12 +1,19 @@
-// Company catalog seeder — ported from alembic migration 0002_seed_companies.py.
+// Seed script: catalog companies + demo user + rich demo data.
 //
-// Idempotent: inserts only when no seeded (is_custom=false) company exists.
+// Idempotent: runs every server start but skips data that already exists.
 // Can be run standalone:  node src/seed/seed.js
-// Or imported and called: import { seed } from './seed/seed.js'; await seed()
 
 import { connectDB, closeDB } from '../config/db.js'
 import Company from '../models/Company.js'
 import User from '../models/User.js'
+import DsaQuestion from '../models/DsaQuestion.js'
+import DsaTag from '../models/DsaTag.js'
+import Resume from '../models/Resume.js'
+import ResumeKeyword from '../models/ResumeKeyword.js'
+import UserCompany from '../models/UserCompany.js'
+import ChecklistItem from '../models/ChecklistItem.js'
+import ActivityLog from '../models/ActivityLog.js'
+import { CHECKLIST_ITEMS } from '../constants/checklist.js'
 import { hashPassword } from '../services/password.js'
 
 // ---------------------------------------------------------------------------
@@ -366,13 +373,100 @@ const SEED_COMPANIES = [
 ]
 
 // ---------------------------------------------------------------------------
-// Seed function
+// Demo data
 // ---------------------------------------------------------------------------
 
-/**
- * Insert catalog companies once. Idempotent — exits immediately when the
- * seeded companies already exist (no duplicates ever inserted).
- */
+const DEMO_TAGS = [
+  'Arrays',
+  'Strings',
+  'Trees',
+  'Graphs',
+  'Dynamic Programming',
+  'Hashing',
+  'Recursion',
+  'Linked Lists',
+  'Greedy',
+  'Sorting',
+  'Binary Search',
+  'Stack',
+  'Queue',
+  'Backtracking',
+  'Math',
+]
+
+// Title, platform, difficulty, tags, days_ago (completed)
+const DEMO_DSA = [
+  ['Two Sum', 'LeetCode', 'Easy', ['Arrays', 'Hashing'], 28],
+  ['Valid Parentheses', 'LeetCode', 'Easy', ['Stack', 'Strings'], 26],
+  ['Merge Two Sorted Lists', 'LeetCode', 'Easy', ['Linked Lists', 'Recursion'], 25],
+  ['Best Time to Buy and Sell Stock', 'LeetCode', 'Easy', ['Arrays', 'Greedy'], 24],
+  ['Invert Binary Tree', 'LeetCode', 'Easy', ['Trees', 'Recursion'], 23],
+  ['Reverse Linked List', 'LeetCode', 'Easy', ['Linked Lists', 'Recursion'], 22],
+  ['Maximum Subarray', 'LeetCode', 'Medium', ['Arrays', 'Dynamic Programming'], 21],
+  ['Group Anagrams', 'LeetCode', 'Medium', ['Strings', 'Hashing', 'Sorting'], 20],
+  ['Top K Frequent Elements', 'LeetCode', 'Medium', ['Hashing', 'Sorting'], 18],
+  ['Binary Tree Level Order Traversal', 'LeetCode', 'Medium', ['Trees'], 17],
+  ['Longest Substring Without Repeating Characters', 'LeetCode', 'Medium', ['Strings', 'Hashing'], 16],
+  ['Course Schedule II', 'LeetCode', 'Medium', ['Graphs'], 14],
+  ['Coin Change', 'LeetCode', 'Medium', ['Dynamic Programming'], 12],
+  ['LRU Cache', 'LeetCode', 'Medium', ['Linked Lists', 'Hashing'], 10],
+  ['Word Search', 'LeetCode', 'Medium', ['Backtracking', 'Arrays'], 8],
+  ['Minimum Window Substring', 'LeetCode', 'Hard', ['Strings', 'Hashing'], 6],
+  ['Merge k Sorted Lists', 'LeetCode', 'Hard', ['Linked Lists', 'Divide and Conquer'], 4],
+  ['Serialize and Deserialize Binary Tree', 'LeetCode', 'Hard', ['Trees'], 2],
+]
+
+const DEMO_KEYWORDS = [
+  'JavaScript', 'React', 'Node.js', 'Python', 'TypeScript',
+  'MongoDB', 'SQL', 'Git', 'Docker', 'AWS',
+  'REST APIs', 'GraphQL', 'TailwindCSS', 'Express.js', 'Redux',
+]
+
+// Company names to track with their status and deadline days from now
+const DEMO_TRACKED = [
+  { name: 'Google', status: 'Interview Scheduled', deadlineDays: 14 },
+  { name: 'Microsoft', status: 'Applied', deadlineDays: 30 },
+  { name: 'Razorpay', status: 'OA Received', deadlineDays: 7 },
+  { name: 'Atlassian', status: 'Researching', deadlineDays: 45 },
+]
+
+// Items to mark as done per tracked company (by item_key)
+// Copied from CHECKLIST_ITEMS, marking the early-stage items done
+const DEMO_DONE_ITEMS = {
+  Google: ['resume_tailored', 'resume_ats_checked', 'dsa_sheet_completed', 'oa_practice_completed', 'applied', 'projects_revised'],
+  Microsoft: ['resume_tailored', 'projects_revised'],
+  Razorpay: ['resume_tailored', 'resume_ats_checked', 'oa_practice_completed'],
+  Atlassian: [],
+}
+
+// ---------------------------------------------------------------------------
+// Resolve tag names to DsaTag ObjectIds (create missing)
+// ---------------------------------------------------------------------------
+
+async function resolveTags(names) {
+  const normalized = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
+  const existing = await DsaTag.find({ name: { $in: normalized } }).collation({
+    locale: 'en', strength: 2,
+  })
+  const map = new Map(existing.map((t) => [t.name.toLowerCase(), t._id]))
+  const ids = []
+  for (const n of normalized) {
+    const lower = n.toLowerCase()
+    if (map.has(lower)) {
+      ids.push(map.get(lower))
+    } else {
+      const tag = await DsaTag.create({ name: n })
+      map.set(lower, tag._id)
+      ids.push(tag._id)
+    }
+  }
+  return ids
+}
+
+// ---------------------------------------------------------------------------
+// Seed function: companies + demo user + demo data
+// ---------------------------------------------------------------------------
+
 export async function seed() {
   // 1. Seed demo user
   const demoEmail = 'demo@offerforge.com'
@@ -383,39 +477,181 @@ export async function seed() {
       email: demoEmail,
       full_name: 'Demo User',
       password: hashedPassword,
-      is_active: true
+      is_active: true,
     })
-    // eslint-disable-next-line no-console
     console.log('[seeder] seeded demo user: demo@offerforge.com')
   }
 
   // 2. Seed companies
   const existingCount = await Company.countDocuments({ is_custom: false })
+  if (existingCount < SEED_COMPANIES.length) {
+    await Company.insertMany(SEED_COMPANIES, { ordered: false }).catch((err) => {
+      if (err.code !== 11000 && err.name !== 'MongoBulkWriteError') throw err
+    })
+    const finalCount = await Company.countDocuments({ is_custom: false })
+    console.log(`[seeder] seeded ${finalCount} catalog companies.`)
+  } else {
+    console.log(`[seeder] ${existingCount} catalog companies already present — skipping.`)
+  }
 
-  if (existingCount >= SEED_COMPANIES.length) {
-    // eslint-disable-next-line no-console
-    console.log(
-      `[seeder] ${existingCount} catalog companies already present — skipping.`,
-    )
+  // 3. Seed demo data (only if no DSA questions exist for the demo user)
+  const demoUser = await User.findOne({ email: demoEmail })
+  if (!demoUser) {
+    console.log('[seeder] demo user not found — skipping demo data.')
     return
   }
 
-  // Use ordered:false so a partial re-seed on duplicate-name doesn't abort.
-  // unique index + is_custom=false acts as the natural guard.
-  const toInsert = SEED_COMPANIES.filter(async (c) => {
-    const hit = await Company.findOne({ name: c.name, is_custom: false })
-    return !hit
+  const existingDsaCount = await DsaQuestion.countDocuments({ user_id: demoUser._id })
+  if (existingDsaCount > 0) {
+    console.log(`[seeder] ${existingDsaCount} demo DSA questions exist — skipping demo data.`)
+    return
+  }
+
+  const now = Date.now()
+
+  // 3a. DSA tags
+  const tagIds = {}
+  for (const name of DEMO_TAGS) {
+    const lower = name.toLowerCase()
+    if (!tagIds[lower]) {
+      const existing = await DsaTag.findOne({ name }).collation({ locale: 'en', strength: 2 })
+      if (existing) {
+        tagIds[lower] = existing._id
+      } else {
+        const t = await DsaTag.create({ name })
+        tagIds[lower] = t._id
+      }
+    }
+  }
+
+  // 3b. DSA questions
+  const activityEntries = []
+  for (const [title, platform, difficulty, tags, daysAgo] of DEMO_DSA) {
+    const completedAt = new Date(now - daysAgo * 86400000)
+    const question = await DsaQuestion.create({
+      user_id: demoUser._id,
+      title,
+      platform,
+      external_url: `https://leetcode.com/problems/${title.toLowerCase().replace(/\s+/g, '-')}/`,
+      difficulty,
+      status: 'Solved',
+      revision_status: daysAgo <= 7 ? 'Due' : 'None',
+      completed_at: completedAt,
+      notes: null,
+      tags: tags.map((t) => tagIds[t.toLowerCase()]),
+    })
+    activityEntries.push({
+      userId: demoUser._id,
+      action: 'dsa_solved',
+      entityType: 'dsa',
+      entityId: String(question._id),
+      metadata: { title, platform, difficulty },
+      created_at: completedAt,
+    })
+  }
+  console.log(`[seeder] seeded ${DEMO_DSA.length} demo DSA questions.`)
+
+  // 3c. Resume + keywords
+  const resume = await Resume.create({
+    user_id: demoUser._id,
+    version_label: 'Software Engineer v1',
+    pdf_data: null,
+    is_active: true,
+  })
+  console.log('[seeder] seeded demo resume.')
+
+  for (const kw of DEMO_KEYWORDS) {
+    await ResumeKeyword.create({
+      resume_id: resume._id,
+      keyword: kw,
+      is_present: true,
+    })
+  }
+  console.log(`[seeder] seeded ${DEMO_KEYWORDS.length} demo resume keywords.`)
+
+  activityEntries.push({
+    userId: demoUser._id,
+    action: 'resume_uploaded',
+    entityType: 'resume',
+    entityId: String(resume._id),
+    metadata: { version_label: 'Software Engineer v1', is_active: true, filename: 'resume.pdf' },
+    created_at: new Date(now - 15 * 86400000),
   })
 
-  // insertMany is faster than individual saves; collisions are silently ignored.
-  await Company.insertMany(SEED_COMPANIES, { ordered: false }).catch((err) => {
-    // Bulk-write errors (duplicate key on re-seed) are expected & harmless.
-    if (err.code !== 11000 && err.name !== 'MongoBulkWriteError') throw err
-  })
+  // 3d. Tracked companies + checklists + activity
+  for (const tc of DEMO_TRACKED) {
+    const company = await Company.findOne({ name: tc.name, is_custom: false })
+    if (!company) {
+      console.log(`[seeder] company "${tc.name}" not found — skipping.`)
+      continue
+    }
 
-  const finalCount = await Company.countDocuments({ is_custom: false })
-  // eslint-disable-next-line no-console
-  console.log(`[seeder] seeded ${finalCount} catalog companies.`)
+    const deadline = new Date(now + tc.deadlineDays * 86400000)
+
+    const uc = await UserCompany.create({
+      user_id: demoUser._id,
+      company_id: company._id,
+      application_status: tc.status,
+      deadline,
+      notes_summary: null,
+    })
+
+    // Seed 15 checklist items
+    const checklistDocs = await ChecklistItem.insertMany(
+      CHECKLIST_ITEMS.map(([itemKey, label]) => ({
+        user_company_id: uc._id,
+        item_key: itemKey,
+        label,
+        is_done: false,
+        completed_at: null,
+      })),
+    )
+
+    // Mark some as done
+    const doneKeys = DEMO_DONE_ITEMS[tc.name] || []
+    for (const itemKey of doneKeys) {
+      const ci = checklistDocs.find((c) => c.item_key === itemKey)
+      if (ci) {
+        ci.is_done = true
+        ci.completed_at = new Date(now - Math.floor(Math.random() * 10 + 1) * 86400000)
+        await ci.save()
+
+        activityEntries.push({
+          userId: demoUser._id,
+          action: 'checklist_item_completed',
+          entityType: 'checklist_item',
+          entityId: String(ci._id),
+          metadata: { item_key: itemKey, label: ci.label, company_name: tc.name },
+          created_at: ci.completed_at,
+        })
+      }
+    }
+
+    activityEntries.push({
+      userId: demoUser._id,
+      action: 'company_tracked',
+      entityType: 'company',
+      entityId: String(company._id),
+      metadata: { company_name: tc.name, cluster: company.cluster, application_status: tc.status },
+      created_at: new Date(now - 20 * 86400000),
+    })
+  }
+  console.log(`[seeder] seeded ${DEMO_TRACKED.length} tracked companies.`)
+
+  // 3e. Activity log
+  // Batch insert to avoid individual saves
+  await ActivityLog.insertMany(
+    activityEntries.map((e) => ({
+      user_id: e.userId,
+      action: e.action,
+      entity_type: e.entityType,
+      entity_id: e.entityId,
+      metadata: e.metadata,
+      created_at: e.created_at,
+    })),
+  )
+  console.log(`[seeder] seeded ${activityEntries.length} activity log entries.`)
+  console.log('[seeder] demo data seeding complete.')
 }
 
 // ---------------------------------------------------------------------------
@@ -430,7 +666,6 @@ if (isMain) {
     await closeDB()
     process.exit(0)
   })().catch((err) => {
-    // eslint-disable-next-line no-console
     console.error('[seeder] fatal:', err)
     process.exit(1)
   })
