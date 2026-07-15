@@ -155,15 +155,22 @@ export async function me(req, res) {
 export async function googleCallbackSuccess(req, res) {
   try {
     const info = req.user
+    // eslint-disable-next-line no-console
+    console.log('[oauth] success callback started. req.user:', JSON.stringify(info))
     if (!info?.sub || !info?.email) {
       return res.redirect(302, `${env.FRONTEND_URL}/login?error=oauth_missing_params`)
     }
 
     // 1. Existing google_sub → log in.
     let user = await User.findOne({ google_sub: info.sub })
+    // eslint-disable-next-line no-console
+    console.log('[oauth] search by sub result:', user ? `found (id: ${user._id}, full_name: ${user.full_name})` : 'not found')
+
     // 2. Existing email → link google_sub.
     if (!user) {
       user = await User.findOne({ email: info.email.toLowerCase() })
+      // eslint-disable-next-line no-console
+      console.log('[oauth] search by email result:', user ? `found (id: ${user._id}, full_name: ${user.full_name})` : 'not found')
       if (user) {
         if (!user.is_active) {
           return res.redirect(302, `${env.FRONTEND_URL}/login?error=oauth_failed`)
@@ -177,9 +184,12 @@ export async function googleCallbackSuccess(req, res) {
 
     // 3. Brand new user.
     if (!user) {
+      const nameToUse = info.name || info.email.split('@')[0]
+      // eslint-disable-next-line no-console
+      console.log('[oauth] creating brand new user with name:', nameToUse)
       user = await User.create({
         email: info.email.toLowerCase(),
-        full_name: info.name || info.email.split('@')[0],
+        full_name: nameToUse,
         // password intentionally omitted for Google-only accounts
         google_sub: info.sub,
         is_active: true,
