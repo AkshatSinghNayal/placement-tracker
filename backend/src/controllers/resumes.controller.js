@@ -11,6 +11,7 @@
 // Readiness formula (see services/scoring.js):
 //   readiness_score = coverage * 0.6 + (active ? 40 : 0)   // 0-100
 
+import https from 'https'
 import Resume from '../models/Resume.js'
 import ResumeKeyword from '../models/ResumeKeyword.js'
 import ResumeCompanyMap from '../models/ResumeCompanyMap.js'
@@ -267,6 +268,28 @@ export async function getReadiness(req, res) {
   })
 }
 
+function fetchUrlBuffer(url, redirectsLeft = 3) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        if (redirectsLeft > 0) {
+          resolve(fetchUrlBuffer(response.headers.location, redirectsLeft - 1))
+        } else {
+          reject(new Error('Too many redirects'))
+        }
+        return
+      }
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to fetch: ${response.statusCode}`))
+        return
+      }
+      const chunks = []
+      response.on('data', (chunk) => chunks.push(chunk))
+      response.on('end', () => resolve(Buffer.concat(chunks)))
+    }).on('error', (err) => reject(err))
+  })
+}
+
 /**
  * GET /resumes/:id/pdf — serve the PDF.
  *   - Cloudinary path: 302 redirect to the secure_url.
@@ -277,12 +300,7 @@ export async function getResumePdf(req, res) {
 
   if (resume.cloudinary_url) {
     try {
-      const response = await fetch(resume.cloudinary_url)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch PDF from Cloudinary: ${response.statusText}`)
-      }
-      const arrayBuffer = await response.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
+      const buffer = await fetchUrlBuffer(resume.cloudinary_url)
       res.setHeader('Content-Type', 'application/pdf')
       res.setHeader('Content-Disposition', 'inline')
       return res.send(buffer)
