@@ -64,7 +64,7 @@ export const NOTE_TYPE_SET = new Set(NOTE_TYPES)
 export const RESOURCE_CATEGORY_SET = new Set(RESOURCE_CATEGORIES)
 
 // Dashboard helpers
-export const TERMINAL_APP_STATUSES = new Set(['Not Started', 'Offer Received', 'Rejected'])
+export const TERMINAL_APP_STATUSES = new Set(['Offer Received', 'Rejected'])
 
 export const TIMELINE_ACTIONS = new Set([
   'dsa_solved',

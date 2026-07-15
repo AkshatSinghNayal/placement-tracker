@@ -276,7 +276,20 @@ export async function getResumePdf(req, res) {
   const resume = await getOwnedResumeOr404(req.params.resume_id, req.userId)
 
   if (resume.cloudinary_url) {
-    return res.redirect(302, resume.cloudinary_url)
+    try {
+      const response = await fetch(resume.cloudinary_url)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF from Cloudinary: ${response.statusText}`)
+      }
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', 'inline')
+      return res.send(buffer)
+    } catch (err) {
+      console.error('[cloudinary] failed to stream pdf:', err)
+      return res.redirect(302, resume.cloudinary_url)
+    }
   }
   if (resume.pdf_data) {
     res.setHeader('Content-Type', 'application/pdf')
