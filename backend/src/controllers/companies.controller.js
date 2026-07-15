@@ -291,7 +291,7 @@ export async function listTrackedCompanies(req, res) {
   const { limit, offset } = parsePagination(req.query)
   const { cluster, application_status } = req.query
 
-  const match = { user_id: req.userId }
+  const match = { user_id: req.user._id }
   if (application_status) match.application_status = application_status
 
   // Join via aggregation so we can filter by company.cluster too.
