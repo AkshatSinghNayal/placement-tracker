@@ -36,11 +36,25 @@ router.get(
 )
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/api/v1/auth/google/fail' }),
+  (req, res, next) => {
+    passport.authenticate('google', { session: false }, (err, user, info) => {
+      if (err) {
+        // eslint-disable-next-line no-console
+        console.error('[oauth] passport authenticate error:', err)
+        return res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`)
+      }
+      if (!user) {
+        // eslint-disable-next-line no-console
+        console.error('[oauth] passport authenticate failed (no user):', info)
+        const code = info?.message?.toLowerCase().includes('declined') ? 'oauth_declined' : 'oauth_failed'
+        return res.redirect(`${env.FRONTEND_URL}/login?error=${code}`)
+      }
+      req.user = user
+      next()
+    })(req, res, next)
+  },
   asyncHandler(ctrl.googleCallbackSuccess),
 )
-// Internal failure landing — re-issues the frontend redirect with an error code.
-router.get('/google/fail', ctrl.googleCallbackFailure)
 
 // Password reset (always 200 on request — no enumeration) -------------------
 router.post('/password-reset/request', asyncHandler(ctrl.requestPasswordReset))

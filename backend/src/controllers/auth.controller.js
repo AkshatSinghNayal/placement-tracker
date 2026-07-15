@@ -195,14 +195,7 @@ export async function googleCallbackSuccess(req, res) {
   }
 }
 
-/** Failure redirect — passport redirected here because the user declined
- *  or the code exchange failed. */
-export function googleCallbackFailure(req, res) {
-  // Express-passport surfaces the failure via req.authError or query.
-  // We map known cases to the frontend's expected error codes.
-  const code = req?.authError?.message?.includes('declined') ? 'oauth_declined' : 'oauth_failed'
-  return res.redirect(302, `${env.FRONTEND_URL}/login?error=${code}`)
-}
+
 
 // ---------------------------------------------------------------------------
 // Password reset
