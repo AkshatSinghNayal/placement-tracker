@@ -104,7 +104,7 @@ export async function uploadResume(req, res) {
 // ---------------------------------------------------------------------------
 
 export async function listResumes(req, res) {
-  const resumes = await Resume.find({ user_id: req.userId }).sort({ createdAt: -1 })
+  const resumes = await Resume.find({ user_id: req.userId }).sort({ created_at: -1 })
   const hasActive = resumes.some((r) => r.is_active)
 
   // One query per resume for keyword counts — fine at this volume.
@@ -160,7 +160,7 @@ export async function deleteResume(req, res) {
 
   // If we deleted the active resume, auto-activate the most recent remaining.
   if (wasActive) {
-    const mostRecent = await Resume.findOne({ user_id: req.userId }).sort({ createdAt: -1 })
+    const mostRecent = await Resume.findOne({ user_id: req.userId }).sort({ created_at: -1 })
     if (mostRecent) {
       mostRecent.is_active = true
       await mostRecent.save()
@@ -176,7 +176,7 @@ export async function deleteResume(req, res) {
 
 export async function listKeywords(req, res) {
   const resume = await getOwnedResumeOr404(req.params.resume_id, req.userId)
-  const items = await ResumeKeyword.find({ resume_id: resume._id }).sort({ createdAt: 1 })
+  const items = await ResumeKeyword.find({ resume_id: resume._id }).sort({ created_at: 1 })
   return res.json(items.map(toKeywordPublic))
 }
 

@@ -24,9 +24,9 @@ export async function search(req, res) {
 
   const [companies, dsaProblems, notes, resources] = await Promise.all([
     Company.find({ name: pattern }).sort({ name: 1 }).limit(limit),
-    DsaQuestion.find({ user_id: req.userId, title: pattern }).sort({ createdAt: -1 }).limit(limit),
-    Note.find({ user_id: req.userId, $or: [{ title: pattern }, { content: pattern }] }).sort({ createdAt: -1 }).limit(limit),
-    Resource.find({ user_id: req.userId, $or: [{ title: pattern }, { url: pattern }] }).sort({ createdAt: -1 }).limit(limit),
+    DsaQuestion.find({ user_id: req.userId, title: pattern }).sort({ created_at: -1 }).limit(limit),
+    Note.find({ user_id: req.userId, $or: [{ title: pattern }, { content: pattern }] }).sort({ created_at: -1 }).limit(limit),
+    Resource.find({ user_id: req.userId, $or: [{ title: pattern }, { url: pattern }] }).sort({ created_at: -1 }).limit(limit),
   ])
 
   return res.json({

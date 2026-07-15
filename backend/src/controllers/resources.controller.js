@@ -23,7 +23,7 @@ export async function listResources(req, res) {
   const { limit, offset } = parsePagination(req.query)
   const filter = buildFilter(req)
   const [items, total] = await Promise.all([
-    Resource.find(filter).sort({ createdAt: -1 }).limit(limit).skip(offset),
+    Resource.find(filter).sort({ created_at: -1 }).limit(limit).skip(offset),
     Resource.countDocuments(filter),
   ])
   return res.json({ items: items.map(toResourcePublic), total, limit, offset })

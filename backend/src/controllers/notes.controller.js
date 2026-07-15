@@ -34,7 +34,7 @@ export async function listNotes(req, res) {
   const { limit, offset } = parsePagination(req.query)
   const filter = buildFilter(req)
   const [items, total] = await Promise.all([
-    Note.find(filter).sort({ createdAt: -1 }).limit(limit).skip(offset),
+    Note.find(filter).sort({ created_at: -1 }).limit(limit).skip(offset),
     Note.countDocuments(filter),
   ])
   return res.json({ items: items.map(toNotePublic), total, limit, offset })

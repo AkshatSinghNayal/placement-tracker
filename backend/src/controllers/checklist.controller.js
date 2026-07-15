@@ -18,7 +18,7 @@ async function getOwnedUserCompanyOr404(userCompanyId, userId) {
 
 export async function listChecklist(req, res) {
   const uc = await getOwnedUserCompanyOr404(req.params.user_company_id, req.userId)
-  const items = await ChecklistItem.find({ user_company_id: uc._id }).sort({ createdAt: 1 })
+  const items = await ChecklistItem.find({ user_company_id: uc._id }).sort({ created_at: 1 })
   return res.json(toChecklistResponse(uc, items))
 }
 
@@ -53,7 +53,7 @@ export async function toggleItem(req, res) {
     }
   }
 
-  const items = await ChecklistItem.find({ user_company_id: uc._id }).sort({ createdAt: 1 })
+  const items = await ChecklistItem.find({ user_company_id: uc._id }).sort({ created_at: 1 })
   return res.json(toChecklistResponse(uc, items))
 }
 
@@ -100,6 +100,6 @@ export async function bulkToggle(req, res) {
     await logActivity(p)
   }
 
-  const fresh = await ChecklistItem.find({ user_company_id: uc._id }).sort({ createdAt: 1 })
+  const fresh = await ChecklistItem.find({ user_company_id: uc._id }).sort({ created_at: 1 })
   return res.json(toChecklistResponse(uc, fresh))
 }

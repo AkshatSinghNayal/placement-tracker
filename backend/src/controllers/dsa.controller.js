@@ -195,7 +195,7 @@ export async function listProblems(req, res) {
   }
 
   const [items, total] = await Promise.all([
-    DsaQuestion.find(filter).sort({ createdAt: -1 }).limit(limit).skip(offset).populate('tags'),
+    DsaQuestion.find(filter).sort({ created_at: -1 }).limit(limit).skip(offset).populate('tags'),
     DsaQuestion.countDocuments(filter),
   ])
   return res.json({ items: items.map(toProblemPublic), total, limit, offset })
@@ -378,7 +378,7 @@ export async function listProblemsForTag(req, res) {
   const filter = { user_id: req.userId, tags: { $in: tagIds } }
 
   const [items, total] = await Promise.all([
-    DsaQuestion.find(filter).sort({ createdAt: -1 }).limit(limit).skip(offset).populate('tags'),
+    DsaQuestion.find(filter).sort({ created_at: -1 }).limit(limit).skip(offset).populate('tags'),
     DsaQuestion.countDocuments(filter),
   ])
   return res.json({ items: items.map(toProblemPublic), total, limit, offset })

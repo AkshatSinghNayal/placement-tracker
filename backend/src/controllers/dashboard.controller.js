@@ -99,14 +99,14 @@ export async function summary(req, res) {
   )
 
   // Recent activity (last 10).
-  const recentRows = await ActivityLog.find({ user_id: userId }).sort({ createdAt: -1 }).limit(10)
+  const recentRows = await ActivityLog.find({ user_id: userId }).sort({ created_at: -1 }).limit(10)
   const recentActivity = recentRows.map((a) => ({
     id: String(a._id),
     action: a.action,
     entity_type: a.entity_type,
     entity_id: a.entity_id ? String(a.entity_id) : null,
     metadata: a.metadata ?? null,
-    created_at: a.createdAt.toISOString(),
+    created_at: a.created_at.toISOString(),
   }))
 
   // Charts.
@@ -171,7 +171,7 @@ async function buildCharts(userId, ucIds) {
   let company_readiness = []
   if (ucIds.length) {
     const ucDocs = await UserCompany.find({ _id: { $in: ucIds } })
-      .sort({ createdAt: -1 })
+      .sort({ created_at: -1 })
       .populate('company_id')
     company_readiness = await Promise.all(
       ucDocs.map(async (uc) => {
@@ -203,7 +203,7 @@ export async function streak(req, res) {
   // Distinct YYYY-MM-DD with ≥1 activity.
   const rows = await ActivityLog.aggregate([
     { $match: { user_id: userId } },
-    { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } } } },
+    { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } } } },
   ])
   const activeDates = new Set(rows.map((r) => r._id).filter(Boolean))
   if (activeDates.size === 0) {
@@ -273,7 +273,7 @@ export async function weeklyProductivity(req, res) {
         _id: {
           $dateToString: {
             format: '%G-W%V', // %G=ISO year, %V=ISO week (01-53)
-            date: '$createdAt',
+            date: '$created_at',
           },
         },
         activity_count: { $sum: 1 },
@@ -305,12 +305,12 @@ export async function timeline(req, res) {
   }
 
   const [rows, total] = await Promise.all([
-    ActivityLog.find(filter).sort({ createdAt: -1 }).limit(limit).skip(offset),
+    ActivityLog.find(filter).sort({ created_at: -1 }).limit(limit).skip(offset),
     ActivityLog.countDocuments(filter),
   ])
 
   const entries = rows.map((r) => ({
-    timestamp: r.createdAt.toISOString(),
+    timestamp: r.created_at.toISOString(),
     event_type: r.action,
     action: r.action,
     entity_type: r.entity_type,

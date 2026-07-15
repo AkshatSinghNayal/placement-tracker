@@ -34,8 +34,8 @@ export function toUserPublic(user) {
     full_name: user.full_name,
     is_active: user.is_active ?? true,
     has_google_linked: Boolean(user.google_sub),
-    created_at: iso(user.createdAt),
-    updated_at: iso(user.updatedAt),
+    created_at: iso(user.created_at),
+    updated_at: iso(user.updated_at),
   }
 }
 
@@ -67,8 +67,8 @@ export function toCompanyPublic(c) {
       : [],
     is_custom: c.is_custom ?? false,
     created_by: c.created_by ? String(c.created_by) : null,
-    created_at: iso(c.createdAt),
-    updated_at: iso(c.updatedAt),
+    created_at: iso(c.created_at),
+    updated_at: iso(c.updated_at),
   }
 }
 
@@ -110,8 +110,8 @@ export function toTrackedCompany(uc, company, checklistProgressPct = 0) {
     deadline: iso(uc.deadline),
     notes_summary: uc.notes_summary ?? null,
     checklist_progress_pct: checklistProgressPct,
-    created_at: iso(uc.createdAt),
-    updated_at: iso(uc.updatedAt),
+    created_at: iso(uc.created_at),
+    updated_at: iso(uc.updated_at),
   }
 }
 
@@ -142,8 +142,8 @@ export function toChecklistItemPublic(i) {
     label: i.label,
     is_done: i.is_done ?? false,
     completed_at: iso(i.completed_at),
-    created_at: iso(i.createdAt),
-    updated_at: iso(i.updatedAt),
+    created_at: iso(i.created_at),
+    updated_at: iso(i.updated_at),
   }
 }
 
@@ -196,8 +196,8 @@ export function toProblemPublic(p) {
     completed_at: iso(p.completed_at),
     notes: p.notes ?? null,
     tags: Array.isArray(p.tags) ? p.tags.map((t) => toTagPublic(t)) : [],
-    created_at: iso(p.createdAt),
-    updated_at: iso(p.updatedAt),
+    created_at: iso(p.created_at),
+    updated_at: iso(p.updated_at),
   }
 }
 
@@ -214,8 +214,8 @@ export function toNotePublic(n) {
     type: n.type,
     company_id: n.company_id ? String(n.company_id) : null,
     dsa_problem_id: n.dsa_problem_id ? String(n.dsa_problem_id) : null,
-    created_at: iso(n.createdAt),
-    updated_at: iso(n.updatedAt),
+    created_at: iso(n.created_at),
+    updated_at: iso(n.updated_at),
   }
 }
 
@@ -232,8 +232,8 @@ export function toResourcePublic(r) {
     url: r.url,
     category: r.category,
     description: r.description ?? null,
-    created_at: iso(r.createdAt),
-    updated_at: iso(r.updatedAt),
+    created_at: iso(r.created_at),
+    updated_at: iso(r.updated_at),
   }
 }
 
@@ -248,8 +248,8 @@ export function toResumePublic(r) {
     version_label: r.version_label,
     cloudinary_url: r.cloudinary_url ?? null,
     is_active: r.is_active ?? false,
-    created_at: iso(r.createdAt),
-    updated_at: iso(r.updatedAt),
+    created_at: iso(r.created_at),
+    updated_at: iso(r.updated_at),
   }
 }
 
@@ -267,8 +267,8 @@ export function toKeywordPublic(k) {
     resume_id: String(k.resume_id),
     keyword: k.keyword,
     is_present: k.is_present ?? false,
-    created_at: iso(k.createdAt),
-    updated_at: iso(k.updatedAt),
+    created_at: iso(k.created_at),
+    updated_at: iso(k.updated_at),
   }
 }
 
@@ -278,8 +278,8 @@ export function toResumeCompanyMapPublic(m) {
     user_company_id: String(m.user_company_id),
     resume_id: String(m.resume_id),
     notes: m.notes ?? null,
-    created_at: iso(m.createdAt),
-    updated_at: iso(m.updatedAt),
+    created_at: iso(m.created_at),
+    updated_at: iso(m.updated_at),
   }
 }
 

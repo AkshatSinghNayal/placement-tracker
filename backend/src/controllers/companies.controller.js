@@ -307,7 +307,7 @@ export async function listTrackedCompanies(req, res) {
     },
     { $unwind: '$company' },
     ...(cluster ? [{ $match: { 'company.cluster': cluster } }] : []),
-    { $sort: { createdAt: -1 } },
+    { $sort: { created_at: -1 } },
     {
       $facet: {
         metadata: [{ $count: 'total' }],
