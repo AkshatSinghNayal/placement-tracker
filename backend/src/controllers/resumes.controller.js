@@ -1,12 +1,10 @@
 // Resumes controller. Includes the multipart upload (Multer middleware is
-// wired in the route), Cloudinary upload, and the readiness-score math.
+// wired in the route) and the readiness-score math.
 //
 // Storage strategy:
-//   - If Cloudinary credentials are configured → upload to Cloudinary, store
-//     cloudinary_url + cloudinary_public_id on the Resume doc.
-//   - Else (local dev) → store the PDF bytes in pdf_data (BinData). GET /pdf
-//     then streams the bytes directly. This keeps `docker compose up` working
-//     out of the box with zero external dependencies.
+//   PDF bytes are stored directly in MongoDB pdf_data (BinData). Old resumes
+//   that were uploaded to Cloudinary are self-healed on first view — the PDF
+//   is fetched from Cloudinary and saved to pdf_data.
 //
 // Readiness formula (see services/scoring.js):
 //   readiness_score = coverage * 0.6 + (active ? 40 : 0)   // 0-100
@@ -16,7 +14,6 @@ import Resume from '../models/Resume.js'
 import ResumeKeyword from '../models/ResumeKeyword.js'
 import ResumeCompanyMap from '../models/ResumeCompanyMap.js'
 import UserCompany from '../models/UserCompany.js'
-import { uploadPdf, destroyFile, isCloudinaryConfigured } from '../services/cloudinary.js'
 import { logActivity } from '../services/activityLog.js'
 import { computeReadiness, READINESS_FORMULA } from '../services/scoring.js'
 import {
@@ -63,25 +60,10 @@ export async function uploadResume(req, res) {
   const existingCount = await Resume.countDocuments({ user_id: req.userId })
   const isFirst = existingCount === 0
 
-  let cloudinaryUrl = null
-  let cloudinaryPublicId = null
-  let pdfData = null
-
-  if (isCloudinaryConfigured()) {
-    const uploaded = await uploadPdf(req.file.buffer, req.file.originalname, { folder: 'resumes' })
-    cloudinaryUrl = uploaded.secure_url
-    cloudinaryPublicId = uploaded.public_id
-  } else {
-    // Local-dev fallback: keep the bytes.
-    pdfData = req.file.buffer
-  }
-
   const resume = await Resume.create({
     user_id: req.userId,
     version_label: versionLabel,
-    cloudinary_url: cloudinaryUrl,
-    cloudinary_public_id: cloudinaryPublicId,
-    pdf_data: pdfData,
+    pdf_data: req.file.buffer,
     is_active: isFirst,
   })
 
@@ -149,10 +131,6 @@ export async function deleteResume(req, res) {
   const resume = await getOwnedResumeOr404(req.params.resume_id, req.userId)
   const wasActive = resume.is_active
 
-  // Clean up Cloudinary asset if present.
-  if (resume.cloudinary_public_id) {
-    await destroyFile(resume.cloudinary_public_id)
-  }
   await Promise.all([
     ResumeKeyword.deleteMany({ resume_id: resume._id }),
     ResumeCompanyMap.deleteMany({ resume_id: resume._id }),
@@ -292,27 +270,34 @@ function fetchUrlBuffer(url, redirectsLeft = 3) {
 
 /**
  * GET /resumes/:id/pdf — serve the PDF.
- *   - Cloudinary path: 302 redirect to the secure_url.
- *   - Local-storage path: stream the BinData buffer inline.
+ *
+ * Primary path: stream pdf_data (BinData) from MongoDB.
+ * Self-healing path: if a PDF was uploaded to Cloudinary (old data), fetch
+ * the bytes once, persist to pdf_data, then serve.
  */
 export async function getResumePdf(req, res) {
   const resume = await getOwnedResumeOr404(req.params.resume_id, req.userId)
 
-  if (resume.cloudinary_url) {
-    try {
-      const buffer = await fetchUrlBuffer(resume.cloudinary_url)
-      res.setHeader('Content-Type', 'application/pdf')
-      res.setHeader('Content-Disposition', 'inline')
-      return res.send(buffer)
-    } catch (err) {
-      console.error('[cloudinary] failed to stream pdf:', err)
-      return res.redirect(302, resume.cloudinary_url)
-    }
-  }
   if (resume.pdf_data) {
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', 'inline')
     return res.send(Buffer.from(resume.pdf_data))
   }
+
+  // Self-heal: migrate old Cloudinary-only documents to MongoDB storage.
+  if (resume.cloudinary_url) {
+    try {
+      const buffer = await fetchUrlBuffer(resume.cloudinary_url)
+      resume.pdf_data = buffer
+      await resume.save()
+      console.log(`[resume] migrated pdf ${resume._id} from cloudinary to db storage`)
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', 'inline')
+      return res.send(buffer)
+    } catch (err) {
+      console.error(`[resume] failed to migrate pdf ${resume._id}:`, err.message)
+    }
+  }
+
   throw notFound('resume PDF not available')
 }

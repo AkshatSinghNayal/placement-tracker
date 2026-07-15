@@ -1,7 +1,6 @@
-// Resume. PDF bytes are uploaded to Cloudinary (cloudinary_url/public_id
-// populated). pdf_data is a fallback BinData buffer when Cloudinary isn't
-// configured (local dev). "Exactly one active resume per user" is enforced
-// in the service layer (Mongoose has no partial unique index equivalent).
+// Resume. PDF bytes stored as BinData in pdf_data (no Cloudinary).
+// "Exactly one active resume per user" is enforced in the service layer
+// (Mongoose has no partial unique index equivalent).
 
 import mongoose from 'mongoose'
 
@@ -11,8 +10,7 @@ const resumeSchema = new Schema(
   {
     user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     version_label: { type: String, required: true, trim: true },
-    // Populated when Cloudinary is configured; otherwise the bytes are kept here.
-    cloudinary_url: { type: String, default: null },
+    cloudinary_url: { type: String, default: null },  // kept for migrating old documents
     cloudinary_public_id: { type: String, default: null },
     pdf_data: { type: Buffer, default: null },
     is_active: { type: Boolean, default: false },

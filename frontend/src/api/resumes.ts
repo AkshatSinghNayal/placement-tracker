@@ -4,7 +4,6 @@ export interface ResumePublic {
   id: string
   user_id: string
   version_label: string
-  cloudinary_url: string
   is_active: boolean
   created_at: string
   updated_at: string

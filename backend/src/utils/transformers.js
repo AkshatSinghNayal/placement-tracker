@@ -246,7 +246,6 @@ export function toResumePublic(r) {
     id: String(r._id),
     user_id: String(r.user_id),
     version_label: r.version_label,
-    cloudinary_url: r.cloudinary_url ?? null,
     is_active: r.is_active ?? false,
     created_at: iso(r.created_at),
     updated_at: iso(r.updated_at),
