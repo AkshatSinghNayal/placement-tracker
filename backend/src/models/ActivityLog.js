@@ -17,7 +17,7 @@ const activityLogSchema = new Schema(
   { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } },
 )
 
-activityLogSchema.index({ user_id: 1, createdAt: -1 })
+activityLogSchema.index({ user_id: 1, created_at: -1 })
 activityLogSchema.index({ user_id: 1, entity_type: 1 })
 
 export default mongoose.model('ActivityLog', activityLogSchema)
