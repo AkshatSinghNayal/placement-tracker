@@ -176,6 +176,9 @@ export async function googleCallbackSuccess(req, res) {
           return res.redirect(302, `${env.FRONTEND_URL}/login?error=oauth_failed`)
         }
         user.google_sub = info.sub
+        if (!user.full_name) {
+          user.full_name = info.name || info.email.split('@')[0]
+        }
         await user.save()
       }
     } else if (!user.is_active) {
