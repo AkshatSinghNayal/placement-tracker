@@ -22,7 +22,10 @@ import axios, {
 let _accessToken: string | null = null
 let _isRefreshing = false
 // Queued requests waiting for the refresh to complete.
-type RefreshSubscriber = (token: string) => void
+type RefreshSubscriber = {
+  resolve: (token: string) => void
+  reject: (err: unknown) => void
+}
 let _refreshSubscribers: RefreshSubscriber[] = []
 
 export function setAccessToken(token: string | null) {
@@ -33,16 +36,17 @@ export function getAccessToken(): string | null {
   return _accessToken
 }
 
-function subscribeTokenRefresh(cb: RefreshSubscriber) {
-  _refreshSubscribers.push(cb)
+function subscribeTokenRefresh(resolve: (token: string) => void, reject: (err: unknown) => void) {
+  _refreshSubscribers.push({ resolve, reject })
 }
 
 function onTokenRefreshed(token: string) {
-  _refreshSubscribers.forEach((cb) => cb(token))
+  _refreshSubscribers.forEach((s) => s.resolve(token))
   _refreshSubscribers = []
 }
 
-function onRefreshFailed() {
+function onRefreshFailed(err: unknown) {
+  _refreshSubscribers.forEach((s) => s.reject(err))
   _refreshSubscribers = []
 }
 
@@ -83,15 +87,15 @@ apiClient.interceptors.response.use(
       if (_isRefreshing) {
         // Another refresh is already in flight — queue this request.
         return new Promise<unknown>((resolve, reject) => {
-          subscribeTokenRefresh((token: string) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`
-            }
-            resolve(apiClient(originalRequest))
-          })
-          // If refresh fails, reject all queued requests too.
-          // We repurpose the subscriber to handle this by re-checking later.
-          void reject
+          subscribeTokenRefresh(
+            (token: string) => {
+              if (originalRequest.headers) {
+                originalRequest.headers.Authorization = `Bearer ${token}`
+              }
+              resolve(apiClient(originalRequest))
+            },
+            (err) => reject(err),
+          )
         })
       }
 
@@ -115,7 +119,7 @@ apiClient.interceptors.response.use(
       } catch (_refreshError) {
         _isRefreshing = false
         setAccessToken(null)
-        onRefreshFailed()
+        onRefreshFailed(_refreshError)
 
         // Dispatch a custom event so AuthContext can react without a circular
         // import dependency.

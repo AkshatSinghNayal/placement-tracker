@@ -42,7 +42,7 @@ export default function ResumesPage() {
   const qc = useQueryClient()
   const [uploadOpen, setUploadOpen] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const dropRef = useRef<HTMLDivElement>(null)
@@ -55,14 +55,15 @@ export default function ResumesPage() {
   }
 
   const openPdf = async (resumeId: string) => {
-    setPdfLoading(true)
+    setPdfLoadingId(resumeId)
     try {
       const blobUrl = await resumesApi.fetchPdfBlobUrl(resumeId)
       setPdfUrl(blobUrl)
-    } catch {
-      toast.error('Failed to load PDF')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load PDF'
+      toast.error(msg)
     } finally {
-      setPdfLoading(false)
+      setPdfLoadingId(null)
     }
   }
 
@@ -197,9 +198,9 @@ export default function ResumesPage() {
                       variant="ghost"
                       className="flex-1 text-xs h-7"
                       onClick={() => openPdf(r.id)}
-                      disabled={pdfLoading}
+                      disabled={pdfLoadingId === r.id}
                     >
-                      <FileText className="h-3 w-3 mr-1" /> {pdfLoading ? 'Loading…' : 'View PDF'}
+                      <FileText className="h-3 w-3 mr-1" /> {pdfLoadingId === r.id ? 'Loading…' : 'View PDF'}
                     </Button>
                   <Button
                     size="sm"
