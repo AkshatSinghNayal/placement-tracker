@@ -1,64 +1,76 @@
 # Deployment Guide
 
-Exact ordered steps to go from a clean clone to a running production deployment.
-Follow them in order — each step depends on values from the previous one.
+Step-by-step guide to deploy OfferForge (MERN stack) to production:
+- **Backend** → Render (Docker web service)
+- **Frontend** → Vercel
+- **Database** → MongoDB Atlas
+
+Follow the steps in order — each one depends on values from the previous.
 
 ---
 
 ## Prerequisites
 
-- GitHub repo with this code pushed to `main`
-- Render account (free tier works; upgrade for always-on)
-- Vercel account (free tier)
+- GitHub repo pushed to `main`
+- [Render](https://render.com) account (free tier works)
+- [Vercel](https://vercel.com) account (free tier works)
+- [MongoDB Atlas](https://cloud.mongodb.com) account (free M0 cluster works)
 - Google Cloud Console project with OAuth 2.0 credentials
-- Cloudinary account (free tier for resume storage)
+- [Cloudinary](https://cloudinary.com) account (free tier, for resume PDF uploads)
 
 ---
 
-## Step 1 — Create the Render PostgreSQL database
+## Step 1 — Create MongoDB Atlas cluster
 
-1. Go to [render.com](https://render.com) → Dashboard → **New** → **PostgreSQL**.
-2. Name: `placement-tracker-db`
-3. Database name: `placement_tracker`, User: `placement`
-4. Plan: Free (or Starter for production)
-5. Region: Oregon (or nearest to your users)
-6. Click **Create Database** and wait for it to become **Available**.
-7. Copy the **Internal Database URL** — you'll need it in Step 2.
-   > ⚠️ The URL Render gives you starts with `postgres://`. The backend needs
-   > `postgresql+asyncpg://`. Replace the scheme manually:
-   > `postgres://` → `postgresql+asyncpg://`
+1. Go to [cloud.mongodb.com](https://cloud.mongodb.com) → **Create a deployment** → **M0 Free**
+2. Choose a region close to your Render region (e.g. AWS us-west-2 for Render Oregon)
+3. Create a **Database User** (username + password — save these)
+4. Under **Network Access** → **Add IP Address** → **Allow Access from Anywhere** (`0.0.0.0/0`)
+5. Go to **Database** → **Connect** → **Drivers** → copy the connection string:
+   ```
+   mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+   ```
+6. Replace `<user>` and `<password>` and append the database name:
+   ```
+   mongodb+srv://<user>:<password>@<cluster>.mongodb.net/placement_tracker?retryWrites=true&w=majority
+   ```
+   Save this — it's your `MONGODB_URI`.
 
 ---
 
-## Step 2 — Deploy the backend on Render
+## Step 2 — Deploy backend on Render
 
 ### Option A — Blueprint (recommended, uses render.yaml)
 
-1. Dashboard → **New** → **Blueprint**
-2. Connect your GitHub repo
-3. Render reads `render.yaml` and creates the services
-4. In the **Environment** tab for `placement-tracker-api`, set the `sync: false` variables:
+1. Render Dashboard → **New** → **Blueprint**
+2. Connect your GitHub repo (`AkshatSinghNayal/placement-tracker`)
+3. Render reads `render.yaml` and creates the `placement-tracker-api` service
+4. In the **Environment** tab, set the `sync: false` variables:
 
 | Key | Value |
-|-----|-------|
-| `DATABASE_URL` | `postgresql+asyncpg://placement:<password>@<host>/<db>` (from Step 1) |
-| `FRONTEND_URL` | `https://your-app.vercel.app` (placeholder — update in Step 5) |
-| `BACKEND_URL` | `https://placement-tracker-api.onrender.com` (your Render URL) |
+|---|---|
+| `MONGODB_URI` | Your Atlas URI from Step 1 |
+| `FRONTEND_URL` | `https://your-app.vercel.app` ← placeholder, update after Step 3 |
+| `BACKEND_URL` | `https://placement-tracker-api.onrender.com` ← your Render URL |
 | `GOOGLE_CLIENT_ID` | From Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
 | `CLOUDINARY_CLOUD_NAME` | From Cloudinary dashboard |
 | `CLOUDINARY_API_KEY` | From Cloudinary dashboard |
 | `CLOUDINARY_API_SECRET` | From Cloudinary dashboard |
 
-5. Click **Deploy** → wait for the deploy to go green.
+5. Click **Deploy** → wait for green
 
 ### Option B — Manual web service
 
-1. Dashboard → **New** → **Web Service**
-2. Connect your GitHub repo, root directory: `backend`
-3. Runtime: **Docker**, Dockerfile path: `./Dockerfile`
-4. Set all env vars from the table above.
-5. Health check path: `/api/v1/health`
+1. Render Dashboard → **New** → **Web Service**
+2. Connect your GitHub repo, set:
+   - **Root Directory**: *(leave blank — uses repo root)*
+   - **Runtime**: Docker
+   - **Dockerfile Path**: `./backend/Dockerfile`
+   - **Docker Context**: `./backend`
+3. Set all env vars from the table above
+4. **Health Check Path**: `/api/v1/health`
+5. Deploy
 
 ---
 
@@ -69,124 +81,144 @@ curl https://placement-tracker-api.onrender.com/api/v1/health
 # Expected: {"status":"ok","db":"ok"}
 ```
 
-If `db` is `"error"`, the `DATABASE_URL` is wrong — double-check the scheme and credentials.
+If `db` shows `"unreachable"`, the `MONGODB_URI` is wrong — check the Atlas connection string, network access rules, and database user credentials.
+
+> **Note:** The free Render tier spins down after 15 min of inactivity. The first request after sleep takes ~30s (cold start). Upgrade to Starter ($7/mo) for always-on.
 
 ---
 
-## Step 4 — Deploy the frontend on Vercel
+## Step 4 — Deploy frontend on Vercel
 
 1. Go to [vercel.com](https://vercel.com) → **Add New Project**
 2. Import your GitHub repo
-3. **Root Directory**: `frontend`
-4. Framework preset: **Other** (or Vite)
-5. Build command: `npm run build`
-6. Output directory: `dist`
-7. Add environment variable:
+3. Set the configuration:
+   - **Root Directory**: `frontend`
+   - **Framework Preset**: Vite (or Other)
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+4. Add environment variable:
 
 | Key | Value |
-|-----|-------|
+|---|---|
 | `VITE_API_URL` | `https://placement-tracker-api.onrender.com` |
 
-8. Click **Deploy** and wait for the green checkmark.
-9. Copy your Vercel deployment URL (e.g. `https://placement-tracker.vercel.app`).
+5. Click **Deploy** → wait for the green checkmark
+6. Copy your Vercel URL (e.g. `https://placement-tracker-xyz.vercel.app`)
 
 ---
 
 ## Step 5 — Update FRONTEND_URL on Render
 
 1. Render Dashboard → `placement-tracker-api` → **Environment**
-2. Update `FRONTEND_URL` to your Vercel URL: `https://placement-tracker.vercel.app`
-3. **Save** — Render will automatically redeploy.
-
-> This is critical for CORS. The backend only allows requests from `FRONTEND_URL`.
-> Until this is set correctly, the browser will get `403` or a CORS error on every API call.
+2. Update `FRONTEND_URL` to your exact Vercel URL:
+   ```
+   https://placement-tracker-xyz.vercel.app
+   ```
+   No trailing slash. This must match exactly — it's used for CORS and the OAuth redirect.
+3. **Save Changes** → Render auto-redeploys
 
 ---
 
 ## Step 6 — Update Google OAuth authorized URIs
 
-In [Google Cloud Console](https://console.cloud.google.com):
+In [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials → your OAuth 2.0 Client ID:
 
-1. APIs & Services → Credentials → your OAuth 2.0 Client ID
-2. **Authorized JavaScript origins**: add `https://placement-tracker.vercel.app`
-3. **Authorized redirect URIs**: add `https://placement-tracker-api.onrender.com/api/v1/auth/google/callback`
-4. Save.
-
-Without Step 6, Google sign-in will fail with `redirect_uri_mismatch`.
-
----
-
-## Step 7 — Smoke test the full stack
-
-```bash
-# 1. Health check
-curl https://placement-tracker-api.onrender.com/api/v1/health
-
-# 2. Sign up a test user
-curl -s -X POST https://placement-tracker-api.onrender.com/api/v1/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"testpass123","full_name":"Test User"}'
-
-# 3. Log in
-curl -s -X POST https://placement-tracker-api.onrender.com/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"testpass123"}'
+**Authorized JavaScript origins** — add:
+```
+https://placement-tracker-xyz.vercel.app
 ```
 
-Then open the Vercel URL in a browser and verify:
-- [ ] Login page loads
-- [ ] Sign up works end-to-end
-- [ ] Dashboard loads after login (no CORS errors in browser devtools)
-- [ ] Theme toggle works
-- [ ] ⌘K command palette opens and search returns results
+**Authorized redirect URIs** — add:
+```
+https://placement-tracker-api.onrender.com/api/v1/auth/google/callback
+```
+
+Click **Save**. Without this step Google login returns `redirect_uri_mismatch`.
 
 ---
 
-## What to check post-deploy for CORS (if you can't verify locally)
+## Step 7 — Smoke test
 
-1. Open browser devtools → Network tab → filter by XHR/Fetch
-2. Log in and check the `POST /api/v1/auth/login` request
-3. The response should include:
+```bash
+BACKEND=https://placement-tracker-api.onrender.com
+
+# Health
+curl $BACKEND/api/v1/health
+
+# Signup
+curl -s -X POST $BACKEND/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"smoke@test.com","password":"test1234","full_name":"Smoke Test"}'
+
+# Login
+TOKEN=$(curl -s -X POST $BACKEND/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"smoke@test.com","password":"test1234"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# Companies (seeded data)
+curl -s -H "Authorization: Bearer $TOKEN" "$BACKEND/api/v1/companies?limit=3" | python3 -m json.tool
+```
+
+Then open the Vercel URL and verify:
+- [ ] Login / signup page loads
+- [ ] Sign up with email/password works
+- [ ] Dashboard loads (no CORS errors in devtools Network tab)
+- [ ] Companies list shows 25 seeded companies
+- [ ] Google login redirects correctly (if OAuth creds are set)
+- [ ] `⌘K` command palette opens
+
+---
+
+## CORS troubleshooting
+
+1. Open browser devtools → Network → filter XHR/Fetch
+2. Check any API response for these headers:
    ```
    Access-Control-Allow-Origin: https://your-vercel-url.vercel.app
    Access-Control-Allow-Credentials: true
    ```
-4. If you see `Access-Control-Allow-Origin: *` or no CORS header, `FRONTEND_URL` on Render is wrong.
-5. If you see a CORS error, the `FRONTEND_URL` env var on Render doesn't match the exact Vercel URL (including protocol, no trailing slash).
+3. If `Access-Control-Allow-Origin` is missing or wrong → `FRONTEND_URL` on Render is incorrect
+4. Check exact URL match — protocol, subdomain, no trailing slash
 
 ---
 
 ## Local development
 
 ```bash
-# 1. Copy and fill the env file
+# 1. Copy and fill env
 cp backend/.env.example .env
-# Fill in JWT secrets, Google OAuth, Cloudinary values
+# Minimum required: JWT_SECRET
+# Optional: GOOGLE_CLIENT_ID/SECRET, CLOUDINARY_* for those features
 
-# 2. Start everything
-docker-compose up --build
-
-# Backend:  http://localhost:8000
+# 2. Start everything with Docker
+docker compose up --build
 # Frontend: http://localhost:5173
-# API docs: http://localhost:8000/docs
-```
+# Backend:  http://localhost:8000
+# MongoDB:  mongodb://localhost:27017
 
-All services start from a single `docker-compose up`. Migrations run automatically.
+# Without Docker (requires local MongoDB on port 27017):
+cd backend && npm install && node src/server.js  # terminal 1
+cd frontend && npm install && npm run dev        # terminal 2
+```
 
 ---
 
 ## Environment variable reference
 
-| Variable | Required | Where set | Notes |
-|----------|----------|-----------|-------|
-| `DATABASE_URL` | Yes | Render / .env | Must use `postgresql+asyncpg://` scheme |
-| `JWT_SECRET_KEY` | Yes | Render (auto-generated) / .env | Min 32 chars in prod |
-| `JWT_REFRESH_SECRET_KEY` | Yes | Render (auto-generated) / .env | Min 32 chars in prod |
+| Variable | Required | Set in | Notes |
+|---|---|---|---|
+| `MONGODB_URI` | Yes | Render / `.env` | Atlas URI in prod; `mongodb://mongodb:27017/placement_tracker` in Docker |
+| `JWT_SECRET` | Yes | Render (auto-generated) / `.env` | Min 32 chars in prod |
+| `JWT_EXPIRES_IN` | No | Render / `.env` | Default `15m` |
+| `REFRESH_TOKEN_TTL_DAYS` | No | Render / `.env` | Default `7` |
+| `APP_ENV` | No | Render | `prod` in production, `dev` locally |
+| `PORT` | No | Render | Default `8000` |
 | `FRONTEND_URL` | Yes | Render | Exact Vercel URL, no trailing slash |
-| `BACKEND_URL` | Yes | Render | Exact Render URL, no trailing slash |
-| `GOOGLE_CLIENT_ID` | OAuth only | Render / .env | Leave empty to disable Google login |
-| `GOOGLE_CLIENT_SECRET` | OAuth only | Render / .env | |
-| `CLOUDINARY_CLOUD_NAME` | Resume upload | Render / .env | Leave empty to disable resume upload |
-| `CLOUDINARY_API_KEY` | Resume upload | Render / .env | |
-| `CLOUDINARY_API_SECRET` | Resume upload | Render / .env | |
-| `VITE_API_URL` | Yes (Vercel) | Vercel env vars | Baked in at build time |
+| `BACKEND_URL` | Yes | Render / `.env` | Exact Render URL, no trailing slash |
+| `GOOGLE_CLIENT_ID` | OAuth only | Render / `.env` | Leave empty to disable Google login |
+| `GOOGLE_CLIENT_SECRET` | OAuth only | Render / `.env` | |
+| `CLOUDINARY_CLOUD_NAME` | Uploads only | Render / `.env` | Leave empty — PDFs stored in MongoDB binary locally |
+| `CLOUDINARY_API_KEY` | Uploads only | Render / `.env` | |
+| `CLOUDINARY_API_SECRET` | Uploads only | Render / `.env` | |
+| `VITE_API_URL` | Yes (Vercel) | Vercel env vars | Baked in at build time; set to your Render URL |

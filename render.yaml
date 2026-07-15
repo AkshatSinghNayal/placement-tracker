@@ -1,17 +1,15 @@
-# render.yaml — Infrastructure-as-code for Render.com.
+# render.yaml — Blueprint for Render.com (MERN stack).
 #
-# Defines:
-#   - A managed PostgreSQL database (placement-tracker-db)
-#   - A Python web service for the FastAPI backend (placement-tracker-api)
+# Provisions the Express/Node backend as a Docker web service.
+# MongoDB is hosted on MongoDB Atlas (not Render) — set MONGODB_URI manually.
 #
 # Usage:
 #   1. Push this file to the root of your GitHub repo.
-#   2. In Render Dashboard → "New Blueprint" → connect your repo.
-#   3. Render reads this file and provisions all services automatically.
-#   4. After first deploy, copy the backend URL and set VITE_API_URL on Vercel.
+#   2. Render Dashboard → New → Blueprint → connect your repo.
+#   3. Set the `sync: false` variables in the Render dashboard after creation.
+#   4. After first deploy, copy the service URL and set VITE_API_URL on Vercel.
 #
-# Environment variables marked sync: false must be set manually in the Render
-# dashboard after creation (secrets cannot be committed to source control).
+# See DEPLOYMENT.md for the full step-by-step guide.
 
 services:
   - type: web
@@ -20,40 +18,60 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     region: oregon
-    plan: free          # upgrade to starter for always-on (free sleeps after 15 min)
-
+    plan: free          # upgrade to starter for always-on (free tier sleeps after 15 min)
 
     healthCheckPath: /api/v1/health
 
     envVars:
-      - key: DATABASE_URL
+      # --- Database (MongoDB Atlas) -----------------------------------------
+      - key: MONGODB_URI
+        # Format: mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/placement_tracker?retryWrites=true&w=majority
         sync: false
+
+      # --- Server -----------------------------------------------------------
+      - key: PORT
+        value: 8000
 
       - key: APP_ENV
         value: prod
 
+      # --- Auth: JWT --------------------------------------------------------
+      - key: JWT_SECRET
+        generateValue: true   # Render auto-generates a cryptographically random secret
+
+      - key: JWT_EXPIRES_IN
+        value: 15m
+
+      - key: ACCESS_TOKEN_TTL_MINUTES
+        value: 15
+
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: 7
+
+      - key: PASSWORD_RESET_TTL_MINUTES
+        value: 30
+
+      # --- URLs (CORS + OAuth) ----------------------------------------------
       - key: FRONTEND_URL
-        # Set this after you know your Vercel URL.
+        # Set to your exact Vercel URL after deploying the frontend.
         # Example: https://placement-tracker.vercel.app
+        # No trailing slash.
         sync: false
 
       - key: BACKEND_URL
-        # Set this to your Render service URL after first deploy.
+        # Set to your Render service URL.
         # Example: https://placement-tracker-api.onrender.com
+        # No trailing slash.
         sync: false
 
-      - key: JWT_SECRET_KEY
-        generateValue: true   # Render auto-generates a random secret
-
-      - key: JWT_REFRESH_SECRET_KEY
-        generateValue: true
-
+      # --- Google OAuth -----------------------------------------------------
       - key: GOOGLE_CLIENT_ID
-        sync: false           # paste from Google Cloud Console
+        sync: false
 
       - key: GOOGLE_CLIENT_SECRET
         sync: false
 
+      # --- Cloudinary (resume PDF uploads) ---------------------------------
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
 
