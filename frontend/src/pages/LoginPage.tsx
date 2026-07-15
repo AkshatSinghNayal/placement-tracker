@@ -64,11 +64,36 @@ export default function LoginPage() {
     }
   }
 
+  const handleDemoLogin = async () => {
+    try {
+      const res = await authApi.login({
+        email: 'demo@offerforge.com',
+        password: 'demo12345',
+      })
+      login(res.user, res.access_token)
+      toast.success(`Welcome back, ${res.user.full_name.split(' ')[0]}! (Demo Account)`)
+      navigate('/dashboard', { replace: true })
+    } catch (err) {
+      toast.error('Failed to log in with Demo Account. Please try again.')
+    }
+  }
+
   return (
     <AuthCard
       title="Welcome back"
       description="Sign in to your account"
     >
+      {/* Demo Credentials Button */}
+      <Button
+        variant="secondary"
+        className="w-full mb-2 gap-2 font-medium"
+        type="button"
+        onClick={handleDemoLogin}
+      >
+        <span>🔑</span>
+        Access with Demo Account
+      </Button>
+
       {/* Google OAuth */}
       <Button
         variant="outline"

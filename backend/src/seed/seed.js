@@ -6,6 +6,8 @@
 
 import { connectDB, closeDB } from '../config/db.js'
 import Company from '../models/Company.js'
+import User from '../models/User.js'
+import { hashPassword } from '../services/password.js'
 
 // ---------------------------------------------------------------------------
 // Seed data  (matches original FastAPI migration 0002_seed_companies.py)
@@ -372,6 +374,22 @@ const SEED_COMPANIES = [
  * seeded companies already exist (no duplicates ever inserted).
  */
 export async function seed() {
+  // 1. Seed demo user
+  const demoEmail = 'demo@offerforge.com'
+  const existingDemoUser = await User.findOne({ email: demoEmail })
+  if (!existingDemoUser) {
+    const hashedPassword = await hashPassword('demo12345')
+    await User.create({
+      email: demoEmail,
+      full_name: 'Demo User',
+      password: hashedPassword,
+      is_active: true
+    })
+    // eslint-disable-next-line no-console
+    console.log('[seeder] seeded demo user: demo@offerforge.com')
+  }
+
+  // 2. Seed companies
   const existingCount = await Company.countDocuments({ is_custom: false })
 
   if (existingCount >= SEED_COMPANIES.length) {
